@@ -94,3 +94,78 @@ app.get('/api/v1/clima/:nome_cidade', async (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Servidor rodando perfeitamente em http://localhost:${PORT}`);
 });
+// =========================================================================
+// ENDPOINT 2: Listagem de Cidades por Estado
+// =========================================================================
+app.get('/api/v1/cidades/:sigla_uf', async (req, res) => {
+    const { sigla_uf } = req.params;
+    // Captura o query parameter 'limite'. Se não for informado, adota 10 como padrão.
+    const limite = req.query.limite ? parseInt(req.query.limite) : 10;
+
+    // REQUISITO DE ERRO 1: Validação de sigla inválida (deve ter exatamente 2 caracteres)
+    if (!sigla_uf || sigla_uf.trim().length !== 2) {
+        return res.status(400).json({
+            erro: true,
+            codigo: "SIGLA_UF_INVALIDA",
+            mensagem: "A sigla do estado deve conter exatamente 2 letras",
+            sigla_uf_informada: sigla_uf
+        });
+    }
+
+    // Validação extra de segurança: Garante que o limite seja um número válido entre 1 e 100
+    if (isNaN(limite) || limite < 1 || limite > 100) {
+        return res.status(400).json({
+            erro: true,
+            codigo: "LIMITE_INVALIDO",
+            mensagem: "O parâmetro limite deve ser um número entre 1 e 100",
+            limite_informado: req.query.limite
+        });
+    }
+
+    try {
+        // Consultando a Brasil API buscando os municípios do estado informado
+        const urlCidades = `https://brasilapi.com.br/api/ibge/municipios/v1/${sigla_uf.toUpperCase()}?providers=dados-abertos-br`;
+        const respostaBrasilApi = await axios.get(urlCidades);
+
+        const todasAsCidades = respostaBrasilApi.data;
+
+        // Mapeamos o array que veio da API externa para retornar apenas o nome do município
+        const cidadesFormatadas = todasAsCidades.map(cidade => ({
+            nome: cidade.nome
+        }));
+
+        // Cortamos o array usando o .slice() com base no limite definido (padrão 10 ou informado pelo usuário)
+        const cidadesLimitadas = cidadesFormatadas.slice(0, limite);
+
+        // Montamos a estrutura exata exigida pelo PDF
+        const respostaFinal = {
+            uf: sigla_uf.toUpperCase(),
+            quantidade_retornada: cidadesLimitadas.length,
+            cidades: cidadesLimitadas,
+            consultado_em: new Date().toISOString()
+        };
+
+        // Retorna sucesso HTTP 200
+        return res.status(200).json(respostaFinal);
+
+    } catch (error) {
+        // Se a Brasil API retornar erro 404 ou 400 por causa da UF inexistente
+        if (error.response && error.response.status === 404) {
+            return res.status(404).json({
+                erro: true,
+                codigo: "UF_NAO_ENCONTRADA",
+                mensagem: "Estado com a sigla informada não foi encontrado",
+                sigla_uf_informada: sigla_uf
+            });
+        }
+
+        // REQUISITO DE ERRO 3: Tratar se o serviço externo cair ou falhar (HTTP 503)
+        console.error("Erro na integração com Brasil API:", error.message);
+        return res.status(503).json({
+            erro: true,
+            codigo: "SERVICO_EXTERNO_INDISPONIVEL",
+            mensagem: "Não foi possível obter dados do serviço externo. Tente novamente em alguns instantes",
+            servico: "Brasil API"
+        });
+    }
+});
