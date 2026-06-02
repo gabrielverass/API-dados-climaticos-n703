@@ -19,7 +19,17 @@ O objetivo deste projeto é integrar APIs públicas externas para disponibilizar
 * APIs públicas: Brasil API / IBGE e Open-Meteo
 
 ## Estrutura do Projeto
-API-dados-climaticos-n703/├── README.md├── INTEGRANTES.md├── package.json├── src/│   └── server.js├── tests/│   ├── clima_sucesso.test.js│   └── clima_erro.test.js└── docs/└── postman_collection.json
+API-dados-climaticos-n703/
+├── README.md
+├── INTEGRANTES.md
+├── package.json
+├── src/
+│   └── server.js
+├── tests/
+│   ├── clima_sucesso.test.js
+│   └── clima_erro.test.js
+└── docs/
+└── postman_collection.json
 ## Como executar
 
 1. **Clonar o repositório:**
@@ -77,5 +87,22 @@ Erro 503 – serviço externo indisponível:  JSON{
   ],
   "consultado_em": "2026-06-01T14:30:00Z"
 }
-🧪 Testes automatizadosPara executar os testes automatizados de integração, certifique-se de que o servidor está rodando em um terminal e execute o comando abaixo em outro terminal:Bashnode --test tests/
-Testes implementados:  Resposta correta para cidade válida  Tratamento de erro para cidade não encontrada[cite: 1]📂 Coleção PostmanArquivo disponível em: docs/postman_collection.json[cite: 1]Importe no Postman para testar rapidamente todos os endpoints[cite: 1].👥 IntegrantesConsultar o arquivo: INTEGRANTES.md[cite: 1]📌 Observações GeraisTodas as respostas são em JSON[cite: 1]API executa na porta 3000[cite: 1]UTF-8 habilitado[cite: 1]CORS habilitado[cite: 1]Dados climáticos obtidos dinamicamente via APIs públicas[cite: 1]
+🧪 Testes automatizadosPara executar os testes automatizados de integração, certifique-se de que o servidor está rodando em um terminal e execute o comando abaixo em outro terminal
+:Bash
+node --test tests/
+Testes implementados:  
+- Resposta correta para cidade válida  
+- Tratamento de erro para cidade não encontrada
+
+📂 Coleção Postman
+Arquivo disponível em: docs/postman_collection.json
+Importe no Postman para testar rapidamente todos os endpoints
+
+.👥 IntegrantesConsultar o arquivo: INTEGRANTES.md
+
+📌 Observações Gerais
+- Todas as respostas são em JSON
+- API executa na porta 3000
+- UTF-8 habilitado
+CORS habilitado
+Dados climáticos obtidos dinamicamente via APIs públicas
