@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios'); // Importamos o axios para fazer as requisições externas
+const axios = require('axios');
 
 const app = express();
 const PORT = 3000;
@@ -8,7 +8,7 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 
-// Endpoint 3: Health Check (Já estava pronto)
+// Health Check Endpoint
 app.get('/api/v1/health', (req, res) => {
     return res.status(200).json({
         status: "healthy",
@@ -17,13 +17,10 @@ app.get('/api/v1/health', (req, res) => {
     });
 });
 
-// =========================================================================
-// ENDPOINT 1: Informações da Cidade com Clima
-// =========================================================================
+// Weather and Geocoding Integration Endpoint
 app.get('/api/v1/clima/:nome_cidade', async (req, res) => {
     const { nome_cidade } = req.params;
 
-    // REQUISITO DE ERRO 1: Validação de nome inválido (mínimo 2 caracteres)
     if (!nome_cidade || nome_cidade.trim().length < 2) {
         return res.status(400).json({
             erro: true,
@@ -34,11 +31,9 @@ app.get('/api/v1/clima/:nome_cidade', async (req, res) => {
     }
 
     try {
-        // ETAPA A: Chamar a API de Geocodificação do Open-Meteo para achar as coordenadas pelo nome
-        const urlGeocodificacao = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nome_cidade)}&count=1&language=pt`;
-        const respostaGeo = await axios.get(urlGeocodificacao);
+        const urlGeo = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(nome_cidade)}&count=1&language=pt`;
+        const respostaGeo = await axios.get(urlGeo);
 
-        // Se a API externa não trouxer resultados, significa que a cidade não existe
         if (!respostaGeo.data.results || respostaGeo.data.results.length === 0) {
             return res.status(404).json({
                 erro: true,
@@ -48,40 +43,29 @@ app.get('/api/v1/clima/:nome_cidade', async (req, res) => {
             });
         }
 
-        // Extraímos os dados geográficos da primeira cidade encontrada
-        const cidadeDados = respostaGeo.data.results[0];
-        const { name, admin1, latitude, longitude } = cidadeDados; 
-        // Nota: 'admin1' costuma ser o estado ou região.
+        const { name, admin1, latitude, longitude } = respostaGeo.data.results[0];
 
-        // ETAPA B: Usar a latitude e longitude obtidas para consultar o clima atual
-        // Vamos pedir a temperatura atual, a máxima e a mínima do dia
         const urlClima = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=temperature_2m_max,temperature_2m_min&current_weather=true&timezone=auto`;
         const respostaClima = await axios.get(urlClima);
-
         const climaDados = respostaClima.data;
 
-        // ETAPA C: Montar e padronizar o JSON final exatamente como o professor pediu
-        const respostaFinal = {
+        return res.status(200).json({
             nome: name,
-            estado: admin1 || "N/A", // Se não vier o estado, coloca N/A para não quebrar
+            estado: admin1 || "N/A",
             clima: {
-                temperatura_atual: climaDados.current_weather.temperature, // Adicional útil
+                temperatura_atual: climaDados.current_weather.temperature,
                 temperatura_min: climaDados.daily.temperature_2m_min[0],
-                temperature_max: climaDados.daily.temperature_2m_max[0],
-                condicao: "Informação via Open-Meteo", // Como varia por API, preenchemos um texto padrão informativo
+                temperatura_max: climaDados.daily.temperature_2m_max[0],
+                condicao: "Informação via Open-Meteo",
                 unidades: {
                     temperatura: "°C"
                 }
             },
             consultado_em: new Date().toISOString()
-        };
-
-        // Retorna o sucesso (HTTP 200) com o JSON envelopado
-        return res.status(200).json(respostaFinal);
+        });
 
     } catch (error) {
-        // REQUISITO DE ERRO 3: Tratar se o serviço externo (Open-Meteo) cair ou falhar
-        console.error("Erro na integração externa:", error.message);
+        console.error("Geocoding/Weather API Integration Error:", error.message);
         return res.status(503).json({
             erro: true,
             codigo: "SERVICO_EXTERNO_INDISPONIVEL",
@@ -91,18 +75,11 @@ app.get('/api/v1/clima/:nome_cidade', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor rodando perfeitamente em http://localhost:${PORT}`);
-});
-// =========================================================================
-// ENDPOINT 2: Listagem de Cidades por Estado
-// =========================================================================
+// Municipalities List Endpoint
 app.get('/api/v1/cidades/:sigla_uf', async (req, res) => {
     const { sigla_uf } = req.params;
-    // Captura o query parameter 'limite'. Se não for informado, adota 10 como padrão.
     const limite = req.query.limite ? parseInt(req.query.limite) : 10;
 
-    // REQUISITO DE ERRO 1: Validação de sigla inválida (deve ter exatamente 2 caracteres)
     if (!sigla_uf || sigla_uf.trim().length !== 2) {
         return res.status(400).json({
             erro: true,
@@ -112,44 +89,31 @@ app.get('/api/v1/cidades/:sigla_uf', async (req, res) => {
         });
     }
 
-    // Validação extra de segurança: Garante que o limite seja um número válido entre 1 e 100
     if (isNaN(limite) || limite < 1 || limite > 100) {
         return res.status(400).json({
             erro: true,
             codigo: "LIMITE_INVALIDO",
-            mensagem: "O parâmetro limite deve ser um número entre 1 e 100",
+            mensagem: "O parâmetro limite deve ser um número entre 1 and 100",
             limite_informado: req.query.limite
         });
     }
 
     try {
-        // Consultando a Brasil API buscando os municípios do estado informado
         const urlCidades = `https://brasilapi.com.br/api/ibge/municipios/v1/${sigla_uf.toUpperCase()}?providers=dados-abertos-br`;
         const respostaBrasilApi = await axios.get(urlCidades);
+        
+        const cidadesLimitadas = respostaBrasilApi.data
+            .map(cidade => ({ nome: cidade.nome }))
+            .slice(0, limite);
 
-        const todasAsCidades = respostaBrasilApi.data;
-
-        // Mapeamos o array que veio da API externa para retornar apenas o nome do município
-        const cidadesFormatadas = todasAsCidades.map(cidade => ({
-            nome: cidade.nome
-        }));
-
-        // Cortamos o array usando o .slice() com base no limite definido (padrão 10 ou informado pelo usuário)
-        const cidadesLimitadas = cidadesFormatadas.slice(0, limite);
-
-        // Montamos a estrutura exata exigida pelo PDF
-        const respostaFinal = {
+        return res.status(200).json({
             uf: sigla_uf.toUpperCase(),
             quantidade_retornada: cidadesLimitadas.length,
             cidades: cidadesLimitadas,
             consultado_em: new Date().toISOString()
-        };
-
-        // Retorna sucesso HTTP 200
-        return res.status(200).json(respostaFinal);
+        });
 
     } catch (error) {
-        // Se a Brasil API retornar erro 404 ou 400 por causa da UF inexistente
         if (error.response && error.response.status === 404) {
             return res.status(404).json({
                 erro: true,
@@ -159,8 +123,7 @@ app.get('/api/v1/cidades/:sigla_uf', async (req, res) => {
             });
         }
 
-        // REQUISITO DE ERRO 3: Tratar se o serviço externo cair ou falhar (HTTP 503)
-        console.error("Erro na integração com Brasil API:", error.message);
+        console.error("Brasil API Integration Error:", error.message);
         return res.status(503).json({
             erro: true,
             codigo: "SERVICO_EXTERNO_INDISPONIVEL",
@@ -168,4 +131,8 @@ app.get('/api/v1/cidades/:sigla_uf', async (req, res) => {
             servico: "Brasil API"
         });
     }
+});
+
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
